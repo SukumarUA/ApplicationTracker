@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Collaborative Job Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .main-nav-button {
+            transition: all 0.3s ease;
+            border-bottom: 4px solid transparent;
+        }
+        .main-nav-button.active {
+            border-bottom-color: #4f46e5;
+            color: #4f46e5;
+        }
+        .tracker-nav-button {
+            transition: all 0.3s ease;
+            border-bottom: 3px solid transparent;
+            padding: 0.5rem 0.25rem;
+            font-size: 0.875rem;
+        }
+        .tracker-nav-button.active {
+            border-bottom-color: #6d28d9;
+            color: #6d28d9;
+        }
+        .job-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 1.5rem;
+        }
+        .task-card {
+            background-color: white;
+            border-radius: 0.5rem;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+            position: relative;
+            border-left: 5px solid #3b82f6;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            display: flex;
+            flex-direction: column;
+        }
+       .task-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 12px 0 rgba(0, 0, 0, 0.1);
+        }
+        .card-content {
+            padding: 1rem;
+            flex-grow: 1;
+        }
+        .delete-task {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            background: none;
+            border: none;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.2s;
+            color: #9ca3af;
+            font-size: 1.25rem;
+        }
+        .task-card:hover .delete-task {
+            opacity: 1;
+        }
+        .delete-task:hover {
+            color: #ef4444;
+        }
+        .card-footer {
+            padding: 0.75rem 1rem;
+            background-color: #f9fafb;
+            border-top: 1px solid #e5e7eb;
+            font-size: 0.875rem;
+            color: #6b7280;
+        }
+        .task-card.priority-high { border-left-color: #ef4444; }
+        .task-card.priority-medium { border-left-color: #f59e0b; }
+        .task-card.priority-low { border-left-color: #3b82f6; }
+
+        .loader {
+            width: 50px;
+            aspect-ratio: 1;
+            border-radius: 50%;
+            border: 8px solid #555;
+            border-right-color: #4f46e5;
+            animation: l2 1s infinite linear;
+            margin: 2rem auto;
+        }
+        @keyframes l2 {to{transform: rotate(1turn)}}
+
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+        .modal-container { background: white; padding: 2rem; border-radius: 0.75rem; width: 90%; max-width: 600px; max-height: 90vh; overflow-y: auto; }
+        .modal-content-pre { white-space: pre-wrap; word-wrap: break-word; font-family: 'Inter', sans-serif; line-height: 1.6; }
+        .notes-display { background-color: #f9fafb; border: 1px solid #e5e7eb; padding: 0.75rem; border-radius: 0.25rem; margin-top: 0.75rem; font-size: 0.875rem; white-space: pre-wrap; }
+        
+        .confetti { position: fixed; width: 10px; height: 10px; background-color: #f00; opacity: 0.7; border-radius: 50%; animation: fall 3s linear forwards; pointer-events: none; z-index: 9999; }
+        @keyframes fall { 0% { transform: translateY(0) rotate(0deg); opacity: 1; } 100% { transform: translateY(100vh) rotate(720deg); opacity: 0; } }
+
+        /* Horizontal Tab Layout Styles */
+        .leads-layout {
+            display: flex;
+            background: white;
+            border-radius: 0.75rem;
+            overflow: hidden;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            height: 60vh;
+        }
+        .leads-list {
+            width: 40%;
+            border-right: 1px solid #e5e7eb;
+            overflow-y: auto;
+        }
+        .lead-item {
+            padding: 1rem;
+            cursor: pointer;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .lead-item:hover {
+            background-color: #f9fafb;
+        }
+        .lead-item.active {
+            background-color: #eef2ff;
+            border-left: 4px solid #4f46e5;
+        }
+        .lead-details {
+            width: 60%;
+            padding: 2rem;
+            overflow-y: auto;
+        }
+        .date-header {
+            padding: 0.5rem 1rem;
+            background-color: #f3f4f6;
+            color: #4b5563;
+            font-weight: 600;
+            font-size: 0.875rem;
+            border-bottom: 1px solid #e5e7eb;
+            position: sticky;
+            top: 0;
+        }
+        .job-type-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            margin-top: 1rem;
+        }
+        .data-role { background-color: #dbeafe; color: #1e40af; }
+        .software-role { background-color: #dcfce7; color: #166534; }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+    
+    <!-- Modals -->
+    <div id="gemini-modal" class="modal-overlay hidden">
+        <div class="modal-container">
+            <h3 id="modal-title" class="text-2xl font-bold mb-4"></h3>
+            <div id="modal-content"><div class="loader"></div></div>
+            <div class="mt-6 flex justify-end gap-4">
+                 <button id="modal-copy-btn" class="bg-gray-200 font-semibold py-2 px-4 rounded-md hover:bg-gray-300 hidden">Copy</button>
+                 <button id="modal-close-btn" class="bg-indigo-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-indigo-700">Close</button>
+            </div>
+        </div>
+    </div>
+    <div id="edit-job-modal" class="modal-overlay hidden">
+         <div class="modal-container">
+            <h3 class="text-2xl font-bold mb-4">Edit Application</h3>
+            <form id="editJobForm">
+                <input type="hidden" id="editJobId">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <input type="text" id="editCompanyName" placeholder="Company Name" required class="p-2 border border-gray-300 rounded-md">
+                    <input type="text" id="editJobTitle" placeholder="Job Title" required class="p-2 border border-gray-300 rounded-md">
+                </div>
+                <div class="mt-4"><input type="url" id="editLink" placeholder="Link to Job Posting" class="w-full p-2 border border-gray-300 rounded-md"></div>
+                <div class="mt-4"><label class="text-sm font-medium text-gray-700">HR Contact</label><div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-1"><input type="text" id="editHrName" placeholder="Contact Name" class="p-2 border"><input type="text" id="editHrInfo" placeholder="Email / Phone" class="p-2 border"></div></div>
+                <div class="mt-4"><label class="text-sm font-medium text-gray-700">Notes</label><textarea id="editNotes" rows="4" class="w-full p-2 border border-gray-300 rounded-md mt-1"></textarea></div>
+                <div class="mt-4 flex items-center justify-between">
+                    <select id="editPriority" class="p-2 border bg-white rounded-md"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select>
+                    <div>
+                        <button type="button" id="edit-modal-cancel-btn" class="bg-gray-200 font-semibold py-2 px-4 rounded-md hover:bg-gray-300">Cancel</button>
+                        <button type="submit" class="bg-blue-600 text-white font-semibold py-2 px-6 rounded-md hover:bg-blue-700 ml-2">Save Changes</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main App Body -->
+     <div class="container mx-auto p-4 md:p-8">
+        <nav class="flex justify-center gap-6 mb-6">
+            <button id="nav-job-leads" class="main-nav-button text-xl font-bold p-2 active">Job Leads</button>
+            <button id="nav-my-tracker" class="main-nav-button text-xl font-bold p-2">My Tracker</button>
+        </nav>
+        
+        <div id="job-leads-view">
+            <header class="text-center mb-8"><h1 class="text-4xl font-bold text-gray-900">Collaborative Job Leads</h1><p class="text-gray-600 mt-2">Job opportunities posted by your group. Found a good one? Track it!</p><div class="mt-4 flex justify-center items-center gap-2"><label for="leads-date-picker" class="text-sm font-medium">Filter by Date:</label><input type="date" id="leads-date-picker" class="p-1 border rounded-md"><button id="clear-date-filter" class="text-sm bg-gray-200 px-3 py-1.5 rounded-md hover:bg-gray-300">Clear</button></div></header>
+            <main class="leads-layout">
+                <div id="job-leads-list-container" class="leads-list"></div>
+                <div id="job-lead-details-container" class="lead-details"></div>
+            </main>
+            <div class="mt-12 max-w-2xl mx-auto">
+                <form id="addLeadForm" class="bg-white p-6 rounded-lg shadow-md">
+                    <h3 class="text-xl font-semibold mb-4">Post a New Job Lead</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <input type="text" id="leadCompanyName" placeholder="Company Name" required class="p-2 border">
+                        <input type="text" id="leadJobTitle" placeholder="Job Title" required class="p-2 border">
+                    </div>
+                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                        <div>
+                            <label class="text-sm font-medium">Type of Job</label>
+                            <select id="leadJobType" class="w-full p-2 border bg-white rounded-md mt-1">
+                                <option value="software-role">Software Role</option>
+                                <option value="data-role">Data Role</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-sm font-medium">Job Lead By (Optional)</label>
+                            <input type="text" id="leadPostedBy" placeholder="Your Name" class="w-full p-2 border rounded-md mt-1">
+                        </div>
+                    </div>
+                    <div class="mt-4"><input type="url" id="leadLink" placeholder="Link to Job Posting" class="w-full p-2 border"></div>
+                    <div class="mt-4"><textarea id="leadNotes" placeholder="Brief notes about the role (optional)" rows="3" class="w-full p-2 border mt-1"></textarea></div>
+                    <div class="mt-4 flex justify-end"><button type="submit" class="bg-blue-600 text-white font-semibold py-2 px-6 rounded-md hover:bg-blue-700">Add Lead</button></div>
+                </form>
+            </div>
+        </div>
+
+        <div id="my-tracker-view" class="hidden">
+             <header class="text-center mb-8"><h1 class="text-4xl font-bold text-gray-900">My Application Tracker</h1><p class="text-gray-600 mt-2">Your private board to track progress.</p><p id="userIdDisplay" class="text-sm text-gray-500 mt-4 font-mono"></p></header>
+            <nav id="tracker-view-nav" class="flex justify-center flex-wrap gap-x-4 md:gap-x-6 mb-8 border-b pb-2">
+                <button data-status="applied" class="tracker-nav-button active font-semibold">Applied</button>
+                <button data-status="hr-screening" class="tracker-nav-button font-semibold">HR Screening</button>
+                <button data-status="tech-interview" class="tracker-nav-button font-semibold">Tech Interview</button>
+                <button data-status="team-interview" class="tracker-nav-button font-semibold">Team Interview</button>
+                <button data-status="final-round" class="tracker-nav-button font-semibold">Final Round</button>
+                <button data-status="offer" class="tracker-nav-button font-semibold">Offer</button>
+            </nav>
+            <main id="task-list-container" class="job-list"></main>
+        </div>
+    </div>
+    
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, collection, addDoc, onSnapshot, updateDoc, deleteDoc, serverTimestamp, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- GLOBAL STATE ---
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-job-app';
+        let db, auth, userId;
+        let jobLeadsCollectionRef, myTrackerCollectionRef, usersCollectionRef;
+        let isAuthReady = false;
+        let allLeads = [];
+        let allTrackedJobs = [];
+        let userProfiles = {};
+        let currentTrackerView = 'applied';
+
+        const STATUSES = { 'applied': 'Applied', 'hr-screening': 'HR Screening', 'tech-interview': 'Tech Interview', 'team-interview': 'Team Interview', 'final-round': 'Final Round', 'offer': 'Offer' };
+
+        // --- VIEW MANAGEMENT ---
+        const mainViews = { jobLeads: document.getElementById('job-leads-view'), myTracker: document.getElementById('my-tracker-view') };
+        const mainNavButtons = { jobLeads: document.getElementById('nav-job-leads'), myTracker: document.getElementById('nav-my-tracker') };
+        function switchMainView(viewName) {
+            Object.values(mainViews).forEach(v => v.classList.add('hidden'));
+            Object.values(mainNavButtons).forEach(b => b.classList.remove('active'));
+            mainViews[viewName].classList.remove('hidden');
+            mainNavButtons[viewName].classList.add('active');
+        }
+        mainNavButtons.jobLeads.onclick = () => switchMainView('jobLeads');
+        mainNavButtons.myTracker.onclick = () => switchMainView('myTracker');
+
+        // --- UTILITY FUNCTIONS ---
+        function formatFirebaseDate(timestamp) {
+            if (!timestamp) return 'N/A';
+            return new Date(timestamp.seconds * 1000).toLocaleDateString("en-US", { month: 'short', day: 'numeric' });
+        }
+        function formatDateHeader(date) {
+            const today = new Date();
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            if (date.toDateString() === today.toDateString()) return 'Today';
+            if (date.toDateString() === yesterday.toDateString()) return 'Yesterday';
+            return date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+        }
+        function launchConfetti() {
+            const confettiCount = 150;
+            const colors = ['#6d28d9', '#2563eb', '#16a34a', '#facc15', '#ffffff'];
+            for (let i = 0; i < confettiCount; i++) {
+                const confetti = document.createElement('div');
+                confetti.classList.add('confetti');
+                confetti.style.left = Math.random() * 100 + 'vw';
+                confetti.style.top = -20 + 'px';
+                confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                confetti.style.animationDelay = Math.random() * 2 + 's';
+                confetti.style.transform = `rotate(${Math.random() * 360}deg)`;
+                document.body.appendChild(confetti);
+                setTimeout(() => confetti.remove(), 4000);
+            }
+        }
+
+        // --- MODAL & GEMINI ---
+        const geminiModal = document.getElementById('gemini-modal');
+        const editJobModal = document.getElementById('edit-job-modal');
+        const geminiModalTitle = document.getElementById('modal-title');
+        const geminiModalContent = document.getElementById('modal-content');
+        const geminiModalCopyBtn = document.getElementById('modal-copy-btn');
+        document.getElementById('modal-close-btn').onclick = () => geminiModal.classList.add('hidden');
+        document.getElementById('edit-modal-cancel-btn').onclick = () => editJobModal.classList.add('hidden');
+        geminiModalCopyBtn.onclick = () => {
+            const textToCopy = geminiModalContent.querySelector('pre').textContent;
+            const textArea = document.createElement('textarea');
+            textArea.value = textToCopy;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+            geminiModalCopyBtn.textContent = 'Copied!';
+            setTimeout(() => { geminiModalCopyBtn.textContent = 'Copy'; }, 2000);
+        };
+
+        function showGeminiModal(title) {
+            geminiModalTitle.textContent = title;
+            geminiModalContent.innerHTML = `<div class="loader"></div>`;
+            geminiModalCopyBtn.classList.add('hidden');
+            geminiModal.classList.remove('hidden');
+        }
+        
+        async function callGemini(prompt) {
+             const chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
+             const payload = { contents: chatHistory };
+             const apiKey = ""; 
+             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+             
+             try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
+                const result = await response.json();
+                if (result.candidates && result.candidates[0].content && result.candidates[0].content.parts[0]) {
+                    return result.candidates[0].content.parts[0].text;
+                }
+                return "Sorry, I couldn't generate a response.";
+             } catch(error) {
+                console.error("Gemini API call failed:", error);
+                return "An error occurred while contacting the AI.";
+             }
+        }
+        
+        async function generateInterviewQuestions(job) {
+            showGeminiModal(`Interview Prep for ${job.jobTitle}`);
+            const prompt = `Generate a list of 5 potential interview questions for a "${job.jobTitle}" role at "${job.companyName}". Include a mix of 2-3 behavioral questions and 2-3 technical or role-specific questions. Format the response clearly with headings.`;
+            const result = await callGemini(prompt);
+            geminiModalContent.innerHTML = `<pre class="modal-content-pre">${result}</pre>`;
+        }
+
+        async function draftFollowUpEmail(job) {
+            showGeminiModal(`Draft Follow-up Email`);
+            const prompt = `My name is [Your Name]. Draft a polite, concise, and professional follow-up email to "${job.hrName || 'the Hiring Manager'}" at "${job.companyName}" regarding my application for the "${job.jobTitle}" position. Keep it to one short paragraph.`;
+            const result = await callGemini(prompt);
+            geminiModalContent.innerHTML = `<pre class="modal-content-pre">${result}</pre>`;
+            geminiModalCopyBtn.classList.remove('hidden');
+        }
+        
+        async function generateResumeTips(job) {
+            showGeminiModal(`Resume Tips for ${job.jobTitle}`);
+            const prompt = `I am applying for a "${job.jobTitle}" position at "${job.companyName}". Please provide me with 3-5 specific suggestions for tailoring my resume. Include:
+1.  A list of essential keywords and skills to include.
+2.  Examples of powerful action verbs relevant to this role.
+3.  A suggestion for a professional summary objective.
+Format the response clearly with headings for each section.`;
+            const result = await callGemini(prompt);
+            geminiModalContent.innerHTML = `<pre class="modal-content-pre">${result}</pre>`;
+        }
+
+        // --- USER PROFILE MANAGEMENT ---
+        async function checkAndCreateUserProfile(uid) {
+            const userDocRef = doc(usersCollectionRef, uid);
+            const userDoc = await getDoc(userDocRef);
+            if (!userDoc.exists()) {
+                const adjectives = ["Clever", "Brave", "Wise", "Quick", "Friendly", "Happy", "Bright"];
+                const nouns = ["Fox", "Lion", "Owl", "Jaguar", "Panda", "Eagle", "Wolf"];
+                const displayName = `${adjectives[Math.floor(Math.random() * adjectives.length)]} ${nouns[Math.floor(Math.random() * nouns.length)]}`;
+                await setDoc(userDocRef, { displayName });
+                userProfiles[uid] = displayName;
+            } else {
+                userProfiles[uid] = userDoc.data().displayName;
+            }
+        }
+
+        // --- FIREBASE INITIALIZATION ---
+        function initializeFirebaseServices() {
+            try {
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                onAuthStateChanged(auth, async user => {
+                    if (user) { 
+                        userId = user.uid;
+                        usersCollectionRef = collection(db, `artifacts/${appId}/public/data/user-profiles`);
+                        await checkAndCreateUserProfile(userId);
+                        
+                        document.getElementById('userIdDisplay').textContent = `User: ${userProfiles[userId] || userId}`;
+                        jobLeadsCollectionRef = collection(db, `artifacts/${appId}/public/data/job-leads`);
+                        myTrackerCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/tracked-jobs`);
+                        setupSnapshotListeners();
+                        isAuthReady = true; 
+                    } else { isAuthReady = false; }
+                });
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) { signInWithCustomToken(auth, __initial_auth_token); } 
+                else { signInAnonymously(auth); }
+            } catch (e) { console.error("Firebase initialization failed:", e); }
+        }
+        
+        // --- DATA LISTENERS ---
+        function setupSnapshotListeners() {
+            onSnapshot(usersCollectionRef, (snapshot) => {
+                snapshot.docs.forEach(doc => {
+                    userProfiles[doc.id] = doc.data().displayName;
+                });
+                renderJobLeads(); 
+            });
+
+            onSnapshot(jobLeadsCollectionRef, (snapshot) => {
+                allLeads = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderJobLeads();
+            }, console.error);
+
+            onSnapshot(myTrackerCollectionRef, (snapshot) => {
+                allTrackedJobs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderTrackedTasks();
+            }, console.error);
+        }
+
+        // --- JOB LEADS (PUBLIC) ---
+        const addLeadForm = document.getElementById('addLeadForm');
+        addLeadForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!isAuthReady) return;
+            await addDoc(jobLeadsCollectionRef, {
+                companyName: document.getElementById('leadCompanyName').value, 
+                jobTitle: document.getElementById('leadJobTitle').value, 
+                link: document.getElementById('leadLink').value, 
+                notes: document.getElementById('leadNotes').value,
+                jobType: document.getElementById('leadJobType').value,
+                postedByName: document.getElementById('leadPostedBy').value || null,
+                postedBy: userId,
+                createdAt: serverTimestamp(), 
+            });
+            e.target.reset();
+        });
+
+        const leadsListContainer = document.getElementById('job-leads-list-container');
+        const leadDetailsContainer = document.getElementById('job-lead-details-container');
+        const leadsDatePicker = document.getElementById('leads-date-picker');
+        const clearDateFilterBtn = document.getElementById('clear-date-filter');
+        
+        leadsDatePicker.addEventListener('change', renderJobLeads);
+        clearDateFilterBtn.addEventListener('click', () => {
+            leadsDatePicker.value = '';
+            renderJobLeads();
+        });
+
+        function renderJobLeads() {
+            const selectedDateStr = leadsDatePicker.value;
+            let leadsToRender = allLeads;
+
+            if (selectedDateStr) {
+                leadsToRender = allLeads.filter(lead => {
+                    if (!lead.createdAt) return false;
+                    const leadDate = lead.createdAt.toDate().toISOString().split('T')[0];
+                    return leadDate === selectedDateStr;
+                });
+            }
+            
+            const activeLeadId = document.querySelector('.lead-item.active')?.dataset.leadId;
+            leadsListContainer.innerHTML = '';
+            
+            leadsToRender.sort((a,b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+
+            if (leadsToRender.length === 0) {
+                leadsListContainer.innerHTML = `<p class="p-4 text-center text-gray-500">No leads found.</p>`;
+                leadDetailsContainer.innerHTML = '';
+                return;
+            }
+
+            let lastDateHeader = '';
+            leadsToRender.forEach(lead => {
+                const leadDate = lead.createdAt ? lead.createdAt.toDate() : new Date();
+                const dateHeaderStr = formatDateHeader(leadDate);
+
+                if (dateHeaderStr !== lastDateHeader) {
+                    const dateHeader = document.createElement('div');
+                    dateHeader.className = 'date-header';
+                    dateHeader.textContent = dateHeaderStr;
+                    leadsListContainer.appendChild(dateHeader);
+                    lastDateHeader = dateHeaderStr;
+                }
+                
+                const leadItem = document.createElement('div');
+                leadItem.className = 'lead-item';
+                leadItem.dataset.leadId = lead.id;
+                leadItem.innerHTML = `<h4 class="font-bold">${lead.jobTitle}</h4><p class="text-sm text-gray-600">${lead.companyName}</p>`;
+                leadItem.onclick = () => {
+                    document.querySelector('.lead-item.active')?.classList.remove('active');
+                    leadItem.classList.add('active');
+                    renderJobLeadDetails(lead);
+                };
+                leadsListContainer.appendChild(leadItem);
+            });
+
+            const leadToSelect = leadsToRender.find(l => l.id === activeLeadId) || leadsToRender[0];
+            if (leadToSelect) {
+                document.querySelector(`.lead-item[data-lead-id="${leadToSelect.id}"]`)?.classList.add('active');
+                renderJobLeadDetails(leadToSelect);
+            } else {
+                 leadDetailsContainer.innerHTML = `<p class="text-gray-500 text-center">Select a job lead to see details.</p>`;
+            }
+        }
+
+        function renderJobLeadDetails(lead) {
+            const posterName = lead.postedByName || userProfiles[lead.postedBy] || 'Anonymous';
+            const jobTypeDisplay = lead.jobType === 'data-role' ? 'Data Role' : 'Software Role';
+            
+            leadDetailsContainer.innerHTML = `
+                <h3 class="text-2xl font-bold">${lead.jobTitle}</h3>
+                <p class="text-lg text-gray-700 mt-1">${lead.companyName}</p>
+                <div class="mt-4 text-sm text-gray-500">
+                    <p>Posted: ${formatFirebaseDate(lead.createdAt)}</p>
+                    <p class="mt-1">By: <span class="font-semibold text-gray-600">${posterName}</span></p>
+                </div>
+                
+                <div class="job-type-badge ${lead.jobType}">${jobTypeDisplay}</div>
+
+                ${lead.notes ? `<div class="mt-6">
+                                    <h4 class="font-semibold">Notes from Poster:</h4>
+                                    <div class="notes-display">${lead.notes}</div>
+                               </div>` : ''}
+
+                <div class="mt-8 flex gap-4">
+                    ${lead.link ? `<a href="${lead.link}" target="_blank" rel="noopener noreferrer" class="bg-blue-600 text-white font-semibold py-2 px-6 rounded-md hover:bg-blue-700">View Posting</a>` : ''}
+                    <button id="track-this-job-btn" class="bg-indigo-600 text-white font-semibold py-2 px-6 rounded-md hover:bg-indigo-700">Track Job</button>
+                </div>
+            `;
+            document.getElementById('track-this-job-btn').onclick = () => trackJob(lead);
+        }
+
+        async function trackJob(leadData) {
+            if (!isAuthReady) { alert("You must be logged in to track a job."); return; }
+            await addDoc(myTrackerCollectionRef, {
+                companyName: leadData.companyName, jobTitle: leadData.jobTitle, link: leadData.link,
+                notes: leadData.notes, originalLeadId: leadData.id, status: 'applied',
+                jobType: leadData.jobType, // Carry over job type
+                priority: 'medium', createdAt: serverTimestamp()
+            });
+            alert(`"${leadData.jobTitle}" at ${leadData.companyName} added to your tracker!`);
+            switchMainView('myTracker');
+        }
+
+        // --- MY TRACKER (PRIVATE) ---
+        const editJobForm = document.getElementById('editJobForm');
+        function openEditModal(job) {
+            document.getElementById('editJobId').value = job.id;
+            document.getElementById('editCompanyName').value = job.companyName || '';
+            document.getElementById('editJobTitle').value = job.jobTitle || '';
+            document.getElementById('editLink').value = job.link || '';
+            document.getElementById('editHrName').value = job.hrName || '';
+            document.getElementById('editHrInfo').value = job.hrInfo || '';
+            document.getElementById('editNotes').value = job.notes || '';
+            document.getElementById('editPriority').value = job.priority || 'medium';
+            editJobModal.classList.remove('hidden');
+        }
+
+        editJobForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const jobId = document.getElementById('editJobId').value;
+            if (!jobId || !isAuthReady) return;
+            const updatedJob = {
+                companyName: document.getElementById('editCompanyName').value,
+                jobTitle: document.getElementById('editJobTitle').value,
+                link: document.getElementById('editLink').value,
+                hrName: document.getElementById('editHrName').value,
+                hrInfo: document.getElementById('editHrInfo').value,
+                notes: document.getElementById('editNotes').value,
+                priority: document.getElementById('editPriority').value
+            };
+            await updateDoc(doc(myTrackerCollectionRef, jobId), updatedJob);
+            editJobModal.classList.add('hidden');
+        });
+
+        async function deleteTask(jobId, companyName) {
+            if (confirm(`Delete the application for "${companyName}"?`) && isAuthReady) {
+                await deleteDoc(doc(myTrackerCollectionRef, jobId));
+            }
+        }
+        
+        function createTrackedTaskElement(job) {
+            const card = document.createElement('div');
+            card.className = `task-card priority-${job.priority || 'medium'}`;
+            card.dataset.id = job.id;
+
+            let statusOptions = '';
+            for (const [value, text] of Object.entries(STATUSES)) {
+                statusOptions += `<option value="${value}" ${job.status === value ? 'selected' : ''}>${text}</option>`;
+            }
+
+            let contentHtml = `<div class="card-content"><h4 class="font-bold text-lg">${job.companyName}</h4><p class="text-gray-700 mb-2">${job.jobTitle}</p>`;
+            if (job.hrName) { contentHtml += `<div class="mt-3 pt-3 border-t"><p class="text-sm font-semibold">Contact: ${job.hrName}</p>${job.hrInfo ? `<p class="text-sm">${job.hrInfo}</p>` : ''}</div>`; }
+            if (job.notes) { contentHtml += `<div class="notes-display mt-3"><strong>Notes:</strong><br>${job.notes}</div>`; }
+            if (job.link) { contentHtml += `<a href="${job.link}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline mt-2 inline-block">View Job Posting</a>`; }
+            contentHtml += `</div>`;
+            
+            let footerHtml = `<div class="card-footer"><div class="flex items-center justify-between"><select class="p-1 border rounded-md text-xs bg-white status-changer">${statusOptions}</select><div class="flex items-center gap-2"><button class="edit-btn text-xs font-semibold text-gray-600 hover:text-black">Edit</button><span class="text-xs">Added: ${formatFirebaseDate(job.createdAt)}</span></div></div>`;
+            
+            card.innerHTML = contentHtml + footerHtml;
+
+            const geminiButtonsContainer = document.createElement('div');
+            geminiButtonsContainer.className = 'mt-3 pt-3 border-t flex flex-wrap gap-2';
+
+            const showResumeTips = ['applied', 'hr-screening'].includes(job.status);
+            const showInterviewPrep = ['hr-screening', 'tech-interview', 'team-interview', 'final-round'].includes(job.status);
+            
+            if (showResumeTips) {
+                 const resumeBtn = document.createElement('button');
+                 resumeBtn.className = 'gemini-resume-btn text-xs bg-blue-100 text-blue-700 font-semibold py-1 px-2 rounded-md hover:bg-blue-200';
+                 resumeBtn.innerHTML = '✨ Tailor Resume';
+                 resumeBtn.onclick = () => generateResumeTips(job);
+                 geminiButtonsContainer.appendChild(resumeBtn);
+            }
+            if (showInterviewPrep) {
+                const interviewBtn = document.createElement('button');
+                interviewBtn.className = 'gemini-interview-btn text-xs bg-purple-100 text-purple-700 font-semibold py-1 px-2 rounded-md hover:bg-purple-200';
+                interviewBtn.innerHTML = '✨ Interview Prep';
+                interviewBtn.onclick = () => generateInterviewQuestions(job);
+                geminiButtonsContainer.appendChild(interviewBtn);
+
+                if (job.hrName) {
+                    const emailBtn = document.createElement('button');
+                    emailBtn.className = 'gemini-email-btn text-xs bg-green-100 text-green-700 font-semibold py-1 px-2 rounded-md hover:bg-green-200';
+                    emailBtn.innerHTML = '✨ Draft Follow-up';
+                    emailBtn.onclick = () => draftFollowUpEmail(job);
+                    geminiButtonsContainer.appendChild(emailBtn);
+                }
+            }
+            
+            if (geminiButtonsContainer.hasChildNodes()) {
+                card.querySelector('.card-footer').appendChild(geminiButtonsContainer);
+            }
+
+            card.querySelector('.status-changer').onchange = (e) => updateJobStatus(job.id, e.target.value);
+            card.querySelector('.edit-btn').onclick = () => openEditModal(job);
+            
+            const deleteBtn = document.createElement('button');
+            deleteBtn.innerHTML = '&#x2715;';
+            deleteBtn.className = 'delete-task';
+            deleteBtn.title = "Delete application";
+            deleteBtn.onclick = () => deleteTask(job.id, job.companyName);
+            card.appendChild(deleteBtn);
+
+            return card;
+        }
+
+        async function updateJobStatus(jobId, newStatus) { 
+            if (!isAuthReady) return; 
+            await updateDoc(doc(myTrackerCollectionRef, jobId), { status: newStatus }); 
+            if (newStatus === 'offer') launchConfetti(); 
+        }
+        
+        function renderTrackedTasks() {
+            const container = document.getElementById('task-list-container');
+            container.innerHTML = '';
+            const filteredJobs = allTrackedJobs.filter(job => job.status === currentTrackerView);
+            filteredJobs.sort((a,b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+            if (filteredJobs.length === 0) {
+                container.innerHTML = `<p class="text-gray-500 text-center col-span-full">No applications in this category yet.</p>`;
+            } else {
+                filteredJobs.forEach(job => container.appendChild(createTrackedTaskElement(job)));
+            }
+        }
+
+        document.getElementById('tracker-view-nav').addEventListener('click', (e) => {
+           if (e.target.tagName === 'BUTTON') {
+                currentTrackerView = e.target.dataset.status;
+                document.querySelector('#tracker-view-nav .active').classList.remove('active');
+                e.target.classList.add('active');
+                renderTrackedTasks();
+            }
+        });
+        
+        // --- INITIAL LOAD ---
+        window.onload = initializeFirebaseServices;
+    </script>
+</body>
+</html>
